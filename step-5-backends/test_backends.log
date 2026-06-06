@@ -1,0 +1,17 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 10467.90it/s]
+loaded gpt2 on cuda; greedy generation of 100 tokens
+reference = manual + uncached at each precision
+
+ prec  backend       path   first_diff     verdict
+ FP32   manual     cached           -1       MATCH
+ FP32     SDPA   uncached           -1       MATCH
+ FP32     SDPA     cached           -1       MATCH
+ FP32      FA3   uncached  mha_fwd, /__w/flash-attention-         ERR
+ FP32      FA3     cached  mha_fwd, /__w/flash-attention-         ERR
+
+ FP16   manual     cached           -1       MATCH
+ FP16     SDPA   uncached           -1       MATCH
+ FP16     SDPA     cached           -1       MATCH
+ FP16      FA3   uncached           -1       MATCH
+ FP16      FA3     cached           -1       MATCH

@@ -61,18 +61,11 @@ class CausalSelfAttention(nn.Module):
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
-        self.block_size = config.block_size
-        # Lazy causal mask: only allocated when the manual attention path needs it.
-        # SDPA / FA3 handle masking via is_causal, so for those backends we never
-        # materialize this (block_size^2 FP32 is huge at long contexts: 16K -> 1 GB
-        # PER LAYER, which would OOM the GPU at 48 layers).
-        self.register_buffer("bias", None, persistent=False)
-
-    def _causal_mask(self, device):
-        if self.bias is None:
-            m = torch.tril(torch.ones(self.block_size, self.block_size, device=device))
-            self.bias = m.view(1, 1, self.block_size, self.block_size)
-        return self.bias
+        self.register_buffer(
+            "bias",
+            torch.tril(torch.ones(config.block_size, config.block_size)).view(
+                1, 1, config.block_size, config.block_size),
+        )
 
     def forward(self, x, cache=None, layer_idx=None):
         B, T, C = x.size()
@@ -113,11 +106,10 @@ class CausalSelfAttention(nn.Module):
         elif CausalSelfAttention.USE_SDPA:
             y = F.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
         else:
-            bias = self._causal_mask(x.device)
             if cache is not None:
-                mask = bias[:, :, S:S + T, :S + T]
+                mask = self.bias[:, :, S:S + T, :S + T]
             else:
-                mask = bias[:, :, :T, :T]
+                mask = self.bias[:, :, :T, :T]
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(head_dim))
             att = att.masked_fill(mask == 0, float('-inf'))
             att = F.softmax(att, dim=-1)

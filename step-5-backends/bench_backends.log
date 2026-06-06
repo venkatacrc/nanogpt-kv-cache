@@ -1,0 +1,17 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/580 [00:00<?, ?it/s]Loading weights: 100%|██████████| 580/580 [00:00<00:00, 10079.91it/s]
+loaded gpt2-xl (1557.6M, FP16) on cuda
+warming up ...
+
+=== gpt2-xl | FP16 | PREFILL | median of 5 ===
+     S   manual(ms)    SDPA(ms)    FA3(ms)   SDPA/man   FA3/man   FA3/SDPA
+   128         9.71        6.30       8.30      1.54x     1.17x      0.76x
+   256         9.87        6.53       8.53      1.51x     1.16x      0.77x
+   512        10.36        6.91       8.89      1.50x     1.17x      0.78x
+  1024        23.09       10.55      11.05      2.19x     2.09x      0.95x
+
+=== gpt2-xl | FP16 | CACHED DECODE TPOT | N=50 | median of 5 ===
+ S_pre   manual(ms)    SDPA(ms)    FA3(ms)   SDPA/man   FA3/man   FA3/SDPA
+   128        10.60        8.02       9.46      1.32x     1.12x      0.85x
+   256        10.64        8.23       9.49      1.29x     1.12x      0.87x
+   512        10.65        8.23       9.42      1.29x     1.13x      0.87x

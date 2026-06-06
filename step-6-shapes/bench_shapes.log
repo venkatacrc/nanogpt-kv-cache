@@ -1,0 +1,19 @@
+built custom GPT: n_layer=48, n_head=12, n_embd=1536, head_dim=128, block_size=16384
+  (1462M params, FP16, random-init) on cuda
+warming up ...
+
+=== custom (head_dim=128, block_size=16384) | FP16 | PREFILL | median of 5 ===
+     S    SDPA(ms)    FA3(ms)   FA3/SDPA
+   128        6.23       7.85      0.79x
+   512        7.02       8.44      0.83x
+  2048       19.15      17.29      1.11x
+  4096       39.28      35.31      1.11x
+  8192       93.92      75.84      1.24x
+ 16384      241.70     182.68      1.32x
+
+=== custom (head_dim=128, block_size=16384) | FP16 | CACHED DECODE TPOT | N=50 | median of 5 ===
+ S_pre    SDPA(ms)    FA3(ms)   FA3/SDPA
+   128        7.87       8.84      0.89x
+   512        7.94       8.85      0.90x
+  2048        7.91       9.11      0.87x
+  4096        7.94       9.12      0.87x

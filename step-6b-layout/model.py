@@ -1,14 +1,14 @@
-"""model.py - GPT-2 with selectable attention backend.
+"""model.py - GPT-2 with FA3-native cache layout.
 
-Same architecture as step-4. The only change is in CausalSelfAttention:
-two class-level flags select among three attention backends.
+Same backends as step-5/6 (manual / SDPA / FA3) but the internal data layout
+is now [B, T, H, D] throughout, matching the [B, S, H, D] KVCache in this step.
 
-  CausalSelfAttention.USE_SDPA = True   # F.scaled_dot_product_attention
-                                        # (cuDNN/MEM-eff/Flash dispatched by PyTorch)
-  CausalSelfAttention.USE_FA3  = True   # direct flash_attn_3._C kernel
-                                        # (requires Hopper+ GPU, prebuilt wheel)
-  both False                            # manual q @ k.T -> softmax -> @ v
-                                        # (default; bit-exact with step-4)
+Per-backend cost of this layout choice (vs step-6's [B, H, S, D] layout):
+  - manual: +1 transpose per Q,K,V trio per layer  (small)
+  - SDPA:   +1 transpose per Q,K,V trio per layer  (small; SDPA may handle non-contig)
+  - FA3:    -3 transposes + -3 .contiguous() copies per layer  (BIG win in decode)
+
+Backend selection unchanged; flip via class-level flags.
 """
 
 import math
@@ -81,49 +81,58 @@ class CausalSelfAttention(nn.Module):
         q, k, v = qkv.split(self.n_embd, dim=2)             # each [B, T, C]
 
         head_dim = C // self.n_head
-        q = q.view(B, T, self.n_head, head_dim).transpose(1, 2)
-        k = k.view(B, T, self.n_head, head_dim).transpose(1, 2)
-        v = v.view(B, T, self.n_head, head_dim).transpose(1, 2)
+        # KEEP [B, T, H, D] layout (no initial transpose to [B, H, T, D]).
+        # This matches the cache layout and FA3's expected input.
+        q = q.view(B, T, self.n_head, head_dim)
+        k = k.view(B, T, self.n_head, head_dim)
+        v = v.view(B, T, self.n_head, head_dim)
 
         if cache is not None:
             assert layer_idx is not None, "layer_idx required when cache is provided"
-            S = cache.seq_len                           # past length BEFORE writing
-            cache.update(layer_idx, k, v)               # write new K, V at [S, S+T)
-            k = cache.k[layer_idx][:, :, :S + T, :]     # full K up to position S + T
-            v = cache.v[layer_idx][:, :, :S + T, :]
+            S = cache.seq_len
+            cache.update(layer_idx, k, v)                   # write [B, T, H, D] directly
+            k = cache.k[layer_idx][:, :S + T, :, :]         # read [B, S+T, H, D]
+            v = cache.v[layer_idx][:, :S + T, :, :]
 
-        # Causal masking is only needed when q_len == k_len > 1 (prefill / no-cache forward).
-        # For a single-token decode step (q_len=1, k_len=S+1), every key position is in the
-        # past, so no mask is needed.
-        is_causal = (q.size(-2) == k.size(-2)) and q.size(-2) > 1
+        # Causal mask needed only when q_len == k_len > 1 (prefill / no-cache).
+        is_causal = (q.size(1) == k.size(1)) and q.size(1) > 1
 
         if CausalSelfAttention.USE_FA3:
             assert _HAS_FA3, "USE_FA3=True but flash_attn_3 is not importable"
-            # FA3 expects [B, S, H, D] layout; our q,k,v are [B, H, S, D]. Transpose +
-            # contiguous() copies are the price of the v3 API; they hurt at small B/S.
-            q_fa = q.transpose(1, 2).contiguous()
-            k_fa = k.transpose(1, 2).contiguous()
-            v_fa = v.transpose(1, 2).contiguous()
+            # Q, K, V already in [B, S, H, D] — FA3's native layout. The cache slice
+            # is contiguous in (H, D) because we only sliced the LEADING S dim.
             out_fa = torch.ops.flash_attn_3.fwd(
-                q_fa, k_fa, v_fa,
+                q, k, v,
                 softmax_scale=1.0 / math.sqrt(head_dim),
                 is_causal=is_causal,
-            )[0]                                          # (output, lse, ...)
-            y = out_fa.transpose(1, 2)                    # back to [B, H, S, D]
+            )[0]                                            # [B, S, H, D]
+            y = out_fa                                      # stays [B, S, H, D]
         elif CausalSelfAttention.USE_SDPA:
-            y = F.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
+            # SDPA wants [N, ..., L, E] with heads as a batch-style axis at position 1.
+            # Transpose Q to [B, H, T, D] and K, V to [B, H, S+T, D]. These views are
+            # non-contiguous; SDPA handles that internally (no .contiguous() needed).
+            q_h = q.transpose(1, 2)
+            k_h = k.transpose(1, 2)
+            v_h = v.transpose(1, 2)
+            y_h = F.scaled_dot_product_attention(q_h, k_h, v_h, is_causal=is_causal)
+            y = y_h.transpose(1, 2)                         # back to [B, T, H, D]
         else:
+            q_h = q.transpose(1, 2)
+            k_h = k.transpose(1, 2)
+            v_h = v.transpose(1, 2)
             bias = self._causal_mask(x.device)
             if cache is not None:
                 mask = bias[:, :, S:S + T, :S + T]
             else:
                 mask = bias[:, :, :T, :T]
-            att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(head_dim))
+            att = (q_h @ k_h.transpose(-2, -1)) * (1.0 / math.sqrt(head_dim))
             att = att.masked_fill(mask == 0, float('-inf'))
             att = F.softmax(att, dim=-1)
-            y = att @ v
+            y_h = att @ v_h
+            y = y_h.transpose(1, 2)                         # back to [B, T, H, D]
 
-        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        # y is [B, T, H, D] regardless of backend; merge heads.
+        y = y.contiguous().view(B, T, C)
         return self.c_proj(y)
 
 

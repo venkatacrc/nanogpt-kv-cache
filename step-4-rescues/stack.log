@@ -1,0 +1,52 @@
+Loading weights:   0%|          | 0/580 [00:00<?, ?it/s]Loading weights: 100%|██████████| 580/580 [00:00<00:00, 9776.15it/s]
+loaded gpt2-xl (1557.6M, FP16) on cuda
+wrapping model with torch.compile(mode='default') ...
+compiling cached path for B=1 ...
+/home/jupyter/.local/lib/python3.10/site-packages/torch/_inductor/lowering.py:7627: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/home/jupyter/.local/lib/python3.10/site-packages/torch/_inductor/lowering.py:7627: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+  compile+warmup B=1: 52.1s
+compiling cached path for B=8 ...
+/home/jupyter/.local/lib/python3.10/site-packages/torch/_inductor/lowering.py:7627: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/home/jupyter/.local/lib/python3.10/site-packages/torch/_inductor/lowering.py:7627: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+  compile+warmup B=8: 97.3s
+
+=== gpt2-xl | FP16 | P=1 | N=500 | stacking compile + batch | median of 3 ===
+  B                    path   total(ms)   TPOT(ms)   vs unc(B)
+  1          uncached_eager        4728       9.46       1.00x
+  1            cached_eager        5125      10.25       0.92x
+  1          cached_compile        2940       5.88       1.61x
+
+  8          uncached_eager       15297      30.64       1.00x
+  8            cached_eager        4995       9.99       3.06x
+  8          cached_compile        3553       7.11       4.31x
+
+---- stacking analysis (cache vs uncached @ B=8) ----
+  batch rescue alone   (cached_eager   B=8):    3.06x
+  compile factor       (cache speedup @ B=1):   1.74x
+  predicted product    (independent rescues):   5.34x
+  measured combined    (cached_compile B=8):    4.31x
+  stacking efficiency  (measured / predicted):    81%

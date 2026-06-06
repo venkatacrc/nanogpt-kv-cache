@@ -1,22 +1,19 @@
-"""bench_shapes.py - does FA3 win at Llama-like shapes?
+"""bench_layout.py - does the [B, S, H, D] cache layout rescue FA3 decode?
 
-Step-5 found FA3 < SDPA on gpt2-xl (head_dim=64, block_size=1024). Hypothesis:
-that result is a small-shape artifact, not a fundamental FA3 weakness. To test,
-we build a gpt2-xl-SIZED model with Llama-like shapes:
+Same model config as step-6 (head_dim=128, n_layer=48, n_embd=1536, ~1.4B params)
+but with the FA3-native cache layout (see inference.py docstring).
 
-  head_dim   = 128    (was 64)        # Hopper wgmma sweet spot
-  block_size = 8192   (was 1024)      # gives FA3's IO advantage room to grow
-  n_embd     = 1536, n_head = 12, n_layer = 48   (~1.4B params)
+We re-run the prefill + decode sweeps at the SAME (S, S_pre) values as step-6
+so the comparison is apples-to-apples. Prediction:
+  - Decode: FA3 should now WIN (or at least match) SDPA, because the per-step
+    K/V transpose tax is gone. SDPA may pay its own (smaller) transpose tax
+    but should remain near launch-floor.
+  - Prefill: similar to step-6. Transposes were already amortized over
+    quadratic attention compute; layout change is roughly neutral at long S,
+    maybe slightly favors FA3 at short S because FA3 no longer needs
+    .contiguous() copies.
 
-We use RANDOM-INITIALIZED weights. Kernel timings are data-independent in the
-fast paths, so this gives faithful latency without needing pretrained weights
-at these shapes.
-
-We measure SDPA vs FA3 (skipping manual at large S to avoid the S^2 attention-
-score allocation explosion). Hypothesis: FA3 crosses over and wins by S~1-2K
-in prefill, decisively at S~4K+.
-
-Run: python3 bench_shapes.py  (H100 only)
+Run: python3 bench_layout.py  (H100 only)
 """
 
 import time
@@ -25,14 +22,12 @@ import torch
 from model import GPT, GPTConfig, CausalSelfAttention
 from inference import KVCache
 
-# ~1.4B-param model with Hopper-friendly head_dim=128 and long context.
-# block_size=16384 so we can sweep prefill up to S=16K.
 CFG = GPTConfig(
     block_size=16384,
     vocab_size=50257,
     n_layer=48,
     n_head=12,
-    n_embd=1536,        # 1536 / 12 = head_dim 128
+    n_embd=1536,
     bias=True,
     dropout=0.0,
 )
@@ -88,16 +83,15 @@ def main():
     torch.manual_seed(42)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # Build model from scratch with random init at our custom shapes.
     model = GPT(CFG).to(device).eval()
     model.half()
     cfg = model.config
-    n_params = sum(p.numel() for p in model.parameters()) / 1e6
     head_dim = cfg.n_embd // cfg.n_head
+    n_params = sum(p.numel() for p in model.parameters()) / 1e6
     print(f"built custom GPT: n_layer={cfg.n_layer}, n_head={cfg.n_head}, "
           f"n_embd={cfg.n_embd}, head_dim={head_dim}, "
           f"block_size={cfg.block_size}")
-    print(f"  ({n_params:.0f}M params, FP16, random-init) on {device}")
+    print(f"  ({n_params:.0f}M params, FP16, [B, S, H, D] cache) on {device}")
 
     backends = ['sdpa', 'fa3']
     print("warming up ...")
@@ -110,8 +104,8 @@ def main():
     sync()
 
     print()
-    print(f"=== custom (head_dim={head_dim}, block_size={cfg.block_size}) | "
-          f"FP16 | PREFILL | median of {NUM_TRIALS} ===")
+    print(f"=== custom ([B,S,H,D] cache, head_dim={head_dim}, "
+          f"block_size={cfg.block_size}) | FP16 | PREFILL | median of {NUM_TRIALS} ===")
     print(f"{'S':>6}  {'SDPA(ms)':>10}  {'FA3(ms)':>9}  {'FA3/SDPA':>9}")
     for S in PREFILL_LENS:
         set_backend('sdpa')
@@ -121,8 +115,9 @@ def main():
         print(f"{S:>6}  {t_s:>10.2f}  {t_f:>9.2f}  {t_s/t_f:>8.2f}x")
 
     print()
-    print(f"=== custom (head_dim={head_dim}, block_size={cfg.block_size}) | "
-          f"FP16 | CACHED DECODE TPOT | N={N_DECODE} | median of {NUM_TRIALS} ===")
+    print(f"=== custom ([B,S,H,D] cache, head_dim={head_dim}, "
+          f"block_size={cfg.block_size}) | FP16 | CACHED DECODE TPOT | "
+          f"N={N_DECODE} | median of {NUM_TRIALS} ===")
     print(f"{'S_pre':>6}  {'SDPA(ms)':>10}  {'FA3(ms)':>9}  {'FA3/SDPA':>9}")
     for S in DECODE_LENS:
         set_backend('sdpa')

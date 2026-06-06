@@ -1,0 +1,12 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/580 [00:00<?, ?it/s]Loading weights:  29%|██▉       | 169/580 [00:00<00:00, 1458.03it/s]Loading weights:  54%|█████▍    | 315/580 [00:00<00:00, 1229.90it/s]Loading weights:  81%|████████  | 471/580 [00:00<00:00, 1353.65it/s]Loading weights: 100%|██████████| 580/580 [00:00<00:00, 1431.89it/s]
+loaded gpt2-xl (1557.6M params) on cuda
+
+=== gpt2-xl | CUDA | N=500 ===
+                              uncached      cached   cached/unc
+  TTFT (ms)                        8.6        10.0        1.16x
+  TPOT (ms/token)                35.41        9.50        0.27x
+  total (ms)                   17678.4      4749.0        0.27x
+  peak GPU memory (GB)            6.35        6.73        1.06x
+
+  cache speedup (total): 3.72x

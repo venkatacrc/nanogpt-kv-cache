@@ -1,0 +1,8 @@
+custom GPT: n_layer=4, head_dim=128, S=16, FP16, [B,S,H,D] cache layout
+
+                    comparison    max |diff|    argmax agree?
+      manual unc vs manual cac     0.000e+00             True
+        SDPA unc vs manual unc     1.953e-03             True
+        SDPA cac vs manual unc     1.953e-03             True
+         FA3 unc vs manual unc     1.953e-03             True
+         FA3 cac vs manual unc     1.953e-03             True
