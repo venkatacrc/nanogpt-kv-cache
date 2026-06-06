@@ -57,7 +57,7 @@ def bench_cached(model, prompt, N):
     cache = KVCache(
         n_layer=cfg.n_layer, B=1, max_seq_len=1024,
         n_head=cfg.n_head, head_dim=cfg.n_embd // cfg.n_head,
-        device=prompt.device, dtype=torch.float32,
+        device=prompt.device, dtype=torch.float16,   # <-- match model dtype
     )
 
     sync(); t0 = time.perf_counter()
@@ -85,8 +85,9 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     model = GPT.from_pretrained(MODEL_TYPE).to(device).eval()
+    model.half()                               # <-- the only structural change from step-1
     n_params = sum(p.numel() for p in model.parameters()) / 1e6
-    print(f"loaded {MODEL_TYPE} ({n_params:.1f}M params) on {device}")
+    print(f"loaded {MODEL_TYPE} ({n_params:.1f}M params, FP16) on {device}")
 
     prompt = torch.tensor([PROMPT_IDS], dtype=torch.long, device=device)
 
