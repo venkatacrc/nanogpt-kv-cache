@@ -1,18 +1,27 @@
-"""bench.py — measure both paths side-by-side.
+"""batch.py — cache speedup grows with batch size.
 
-Reports TTFT, TPOT, total time, peak GPU memory for the uncached reference
-path and the cached path, plus the speedup ratio. Single trial each.
-Run: python3 bench.py
+Same model (gpt2-xl), same precision (FP16), same prompt length (P=1),
+same N=500 as step-2. Only batch size B varies. As B grows:
+  - cached path: launch floor amortizes across B sequences (per-step cost
+    stays nearly flat in wall-clock; per-sequence cost drops)
+  - uncached path: compute scales ~linearly with B
+So cache speedup should rise with B even at short P.
+
+Run: python3 batch.py
 """
 
 import time
+import statistics
 import torch
 from model import GPT
 from inference import KVCache
 
-MODEL_TYPE   = 'gpt2-xl'   # gpt2, gpt2-medium, gpt2-large, gpt2-xl
-N_NEW_TOKENS = 500
-PROMPT_IDS   = [15496]     # 'Hello'
+MODEL_TYPE      = 'gpt2-xl'
+N_NEW_TOKENS    = 500
+PROMPT_LEN      = 1
+BATCH_SIZES     = [1, 4, 8]
+PROMPT_TOKEN_ID = 15496   # 'Hello'
+NUM_TRIALS      = 3
 
 
 def sync():
@@ -22,62 +31,38 @@ def sync():
 
 @torch.no_grad()
 def bench_uncached(model, prompt, N):
-    if torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats()
-
     idx = prompt
     sync(); t0 = time.perf_counter()
-
-    # First step (TTFT): full forward on the prompt
     logits = model(idx)
     next_token = logits[:, -1, :].argmax(dim=-1, keepdim=True)
     idx = torch.cat([idx, next_token], dim=1)
     sync(); ttft = time.perf_counter() - t0
-
-    # Remaining N-1 steps
     for _ in range(N - 1):
         logits = model(idx)
         next_token = logits[:, -1, :].argmax(dim=-1, keepdim=True)
         idx = torch.cat([idx, next_token], dim=1)
     sync(); total = time.perf_counter() - t0
-
-    tpot = (total - ttft) / (N - 1) if N > 1 else float('nan')
-    mem  = (torch.cuda.max_memory_allocated() / (1024**3)
-            if torch.cuda.is_available() else 0.0)
-    return {'ttft_ms': ttft*1000, 'total_ms': total*1000,
-            'tpot_ms': tpot*1000, 'peak_mem_gb': mem}
+    return {'ttft_ms': ttft*1000, 'total_ms': total*1000}
 
 
 @torch.no_grad()
 def bench_cached(model, prompt, N):
     cfg = model.config
-    if torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats()
-
+    B = prompt.size(0)
     cache = KVCache(
-        n_layer=cfg.n_layer, B=1, max_seq_len=1024,
+        n_layer=cfg.n_layer, B=B, max_seq_len=cfg.block_size,
         n_head=cfg.n_head, head_dim=cfg.n_embd // cfg.n_head,
-        device=prompt.device, dtype=torch.float16,   # <-- match model dtype
+        device=prompt.device, dtype=torch.float16,
     )
-
     sync(); t0 = time.perf_counter()
-
-    # First step (TTFT): prefill on prompt; first generated token comes from prefill logits
     logits = model(prompt, cache)
     next_token = logits[:, -1, :].argmax(dim=-1, keepdim=True)
     sync(); ttft = time.perf_counter() - t0
-
-    # Remaining N-1 decode steps (each = single-token forward against cache)
     for _ in range(N - 1):
         logits = model(next_token, cache)
         next_token = logits[:, -1, :].argmax(dim=-1, keepdim=True)
     sync(); total = time.perf_counter() - t0
-
-    tpot = (total - ttft) / (N - 1) if N > 1 else float('nan')
-    mem  = (torch.cuda.max_memory_allocated() / (1024**3)
-            if torch.cuda.is_available() else 0.0)
-    return {'ttft_ms': ttft*1000, 'total_ms': total*1000,
-            'tpot_ms': tpot*1000, 'peak_mem_gb': mem}
+    return {'ttft_ms': ttft*1000, 'total_ms': total*1000}
 
 
 def main():
@@ -85,35 +70,42 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     model = GPT.from_pretrained(MODEL_TYPE).to(device).eval()
-    model.half()                               # <-- the only structural change from step-1
+    model.half()
     n_params = sum(p.numel() for p in model.parameters()) / 1e6
-    print(f"loaded {MODEL_TYPE} ({n_params:.1f}M params, FP16) on {device}")
+    print(f"loaded {MODEL_TYPE} ({n_params:.1f}M, FP16) on {device}")
 
-    prompt = torch.tensor([PROMPT_IDS], dtype=torch.long, device=device)
-
-    # Warmup each path once (small N) so timing is steady-state
-    _ = bench_uncached(model, prompt, N=3)
-    _ = bench_cached(model, prompt, N=3)
+    # Warmup: small N, then one full-N pass at max B to JIT every kernel shape
+    # the real sweep will hit (avoids first-trial pollution).
+    warm = torch.tensor([[PROMPT_TOKEN_ID] * 32] * max(BATCH_SIZES),
+                        dtype=torch.long, device=device)
+    _ = bench_uncached(model, warm, N=3)
+    _ = bench_cached(model,   warm, N=3)
+    long_warm = torch.tensor([[PROMPT_TOKEN_ID] * PROMPT_LEN] * max(BATCH_SIZES),
+                             dtype=torch.long, device=device)
+    _ = bench_uncached(model, long_warm, N=N_NEW_TOKENS)
     sync()
 
-    r_unc = bench_uncached(model, prompt, N_NEW_TOKENS)
-    r_cac = bench_cached(model,   prompt, N_NEW_TOKENS)
-
-    speedup = r_unc['total_ms'] / r_cac['total_ms']
-
     print()
-    print(f"=== {MODEL_TYPE} | {device.upper()} | N={N_NEW_TOKENS} ===")
-    print(f"  {'':24}  {'uncached':>10}  {'cached':>10}  {'cached/unc':>11}")
-    print(f"  {'TTFT (ms)':24}  {r_unc['ttft_ms']:>10.1f}  {r_cac['ttft_ms']:>10.1f}"
-          f"  {r_cac['ttft_ms']/r_unc['ttft_ms']:>10.2f}x")
-    print(f"  {'TPOT (ms/token)':24}  {r_unc['tpot_ms']:>10.2f}  {r_cac['tpot_ms']:>10.2f}"
-          f"  {r_cac['tpot_ms']/r_unc['tpot_ms']:>10.2f}x")
-    print(f"  {'total (ms)':24}  {r_unc['total_ms']:>10.1f}  {r_cac['total_ms']:>10.1f}"
-          f"  {r_cac['total_ms']/r_unc['total_ms']:>10.2f}x")
-    print(f"  {'peak GPU memory (GB)':24}  {r_unc['peak_mem_gb']:>10.2f}  {r_cac['peak_mem_gb']:>10.2f}"
-          f"  {r_cac['peak_mem_gb']/max(r_unc['peak_mem_gb'], 1e-9):>10.2f}x")
-    print()
-    print(f"  cache speedup (total): {speedup:.2f}x")
+    print(f"=== {MODEL_TYPE} | FP16 | P={PROMPT_LEN} | N={N_NEW_TOKENS} | "
+          f"batch sweep | median of {NUM_TRIALS} ===")
+    print(f"{'B':>3}  {'uncached(ms)':>13}  {'cached(ms)':>11}  {'speedup':>9}  "
+          f"{'TTFT_unc':>10}  {'TTFT_cac':>10}")
+
+    for B in BATCH_SIZES:
+        prompt = torch.tensor([[PROMPT_TOKEN_ID] * PROMPT_LEN] * B,
+                              dtype=torch.long, device=device)
+        unc_totals, cac_totals, unc_ttfts, cac_ttfts = [], [], [], []
+        for _ in range(NUM_TRIALS):
+            r_unc = bench_uncached(model, prompt, N_NEW_TOKENS)
+            r_cac = bench_cached(model,   prompt, N_NEW_TOKENS)
+            unc_totals.append(r_unc['total_ms']); cac_totals.append(r_cac['total_ms'])
+            unc_ttfts.append(r_unc['ttft_ms']);   cac_ttfts.append(r_cac['ttft_ms'])
+        unc_med = statistics.median(unc_totals)
+        cac_med = statistics.median(cac_totals)
+        speedup = unc_med / cac_med
+        print(f"{B:>3}  {unc_med:>13.0f}  {cac_med:>11.0f}  "
+              f"{speedup:>8.2f}x  {statistics.median(unc_ttfts):>10.1f}  "
+              f"{statistics.median(cac_ttfts):>10.1f}")
 
 
 if __name__ == '__main__':
