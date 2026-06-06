@@ -1,0 +1,19 @@
+title: nanogpt-kv-cache
+description: Adding a KV cache to nanoGPT — a step-by-step empirical tutorial with H100 measurements.
+author: Venkata
+theme: jekyll-theme-cayman
+
+# So syntax highlighting works on GitHub Pages
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  syntax_highlighter: rouge
+
+# Make sure the post is at the site root
+permalink: /:title/
+
+# Don't accidentally publish files that are private
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
