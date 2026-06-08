@@ -1,0 +1,12 @@
+built custom GPT: n_layer=48, n_head=12, head_dim=128, block_size=16384
+  (1462M params, weights FP16, [B, S, H, D] cache) on cuda
+FP8 smoke test: smoke OK: max|FP8 - FP16|=2.83e+00, argmax_match=11%
+warming up ...
+
+=== custom 1.4B | FP16 weights | PREFILL | median of 5 ===
+     S    FA3 FP16(ms)    FA3 FP8(ms)   FP16/FP8
+   512            7.98          16.55      0.48x
+  2048           15.63          24.42      0.64x
+  4096           32.57          45.56      0.71x
+  8192           71.95          88.44      0.81x
+ 16384          176.76         190.15      0.93x

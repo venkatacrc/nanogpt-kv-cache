@@ -1,0 +1,11 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/580 [00:00<?, ?it/s]Loading weights: 100%|██████████| 580/580 [00:00<00:00, 10741.47it/s]
+loaded gpt2-xl (1557.6M, FP16) on cuda
+
+=== gpt2-xl | FP16 | B=1 | P=1 | N sweep | median of 3 ===
+    N   uncached(ms)   cached(ms)    speedup    unc TPOT    cac TPOT
+  100            969         1090      0.89x        9.69       10.90
+  300           2904         3258      0.89x        9.68       10.86
+  500           4952         5429      0.91x        9.90       10.86
+  800           9500         8695      1.09x       11.88       10.87
+ 1000          14317        10891      1.31x       14.32       10.89

@@ -1,0 +1,15 @@
+loaded custom GPT: n_layer=48, n_head=12, n_kv_head=2, head_dim=128
+  (1251M params, FP16, GQA 6:1, [B,S,H,D] cache, FA3 backend) on cuda
+warming up ...
+
+=== throughput vs latency sweep | P=128 | N=128 | FA3 | median of 5 ===
+    B  prefill(ms)   TPOT(ms)   total(ms)   tps_user   tps_total
+    1          8.8       8.80        1126      113.7       113.7
+    2          9.2       8.13        1042      123.0       245.9
+    4          9.4       8.18        1048      122.3       489.1
+    8         10.2       8.14        1044      122.9       982.9
+   16         14.2       8.23        1060      121.5      1943.2
+   32         25.6       8.16        1062      122.6      3922.1
+   64         49.9       8.22        1093      121.7      7790.0
+  128        101.8       8.07        1126      123.9     15858.2
+  256        208.1       8.06        1235      124.0     31755.3

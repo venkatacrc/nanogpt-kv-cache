@@ -1,0 +1,16 @@
+device: cuda
+
+=== MHA (n_head=12, head_dim=64) ===
+  manual logits shape: (1, 5, 50257)
+  sdpa: max|diff|=1.953e-03  argmax_match=True
+  fa3: max|diff|=1.953e-03  argmax_match=True
+
+=== GQA n_kv_head=4 (n_head=12, head_dim=64) ===
+  manual logits shape: (1, 5, 50257)
+  sdpa: max|diff|=1.953e-03  argmax_match=True
+  fa3: max|diff|=1.953e-03  argmax_match=True
+
+=== GQA n_kv_head=2 (n_head=12, head_dim=64) ===
+  manual logits shape: (1, 5, 50257)
+  sdpa: max|diff|=1.953e-03  argmax_match=True
+  fa3: max|diff|=1.953e-03  argmax_match=True

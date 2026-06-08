@@ -1,0 +1,21 @@
+W0607 03:16:58.181000 13 torch/distributed/run.py:852] 
+W0607 03:16:58.181000 13 torch/distributed/run.py:852] *****************************************
+W0607 03:16:58.181000 13 torch/distributed/run.py:852] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0607 03:16:58.181000 13 torch/distributed/run.py:852] *****************************************
+=== TP-2 | Llama-3 8B-class | n_layer=32, n_head=32, n_kv_head=8, n_embd=4096, head_dim=128 ===
+  per-rank params: 3.26B  (world_size=2)
+/home/jupyter/.local/lib/python3.10/site-packages/torch/distributed/c10d_logger.py:83: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
+  return func(*args, **kwargs)
+[rank0]:[W607 03:17:15.775437339 ProcessGroupNCCL.cpp:5138] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+
+PREFILL | FP16 | median of 5
+       S    SDPA(ms)    FA3(ms)   SDPA/FA3
+     512       11.49      11.14      1.03x
+    2048       35.42      34.15      1.04x
+    4096       74.15      69.22      1.07x
+
+DECODE TPOT | N=50 | median of 5
+   S_pre    SDPA(ms)    FA3(ms)   SDPA/FA3
+     128        7.67       7.55      1.02x
+    1024        7.73       7.67      1.01x
+    4096        7.65       7.70      0.99x

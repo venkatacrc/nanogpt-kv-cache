@@ -1,0 +1,43 @@
+=== GQA backend sweep | custom 1.4B-ish | block_size=16384 ===
+
+### MHA  (n_head=12, n_kv_head=12, head_dim=128, 1462M params)
+  PREFILL | FP16 | median of 5
+       S    SDPA(ms)    FA3(ms)   SDPA/FA3
+     512        7.05       7.11      0.99x
+    2048       18.98      15.58      1.22x
+    4096       39.23      32.32      1.21x
+    8192       91.98      71.39      1.29x
+  DECODE TPOT | N=50 | median of 5
+   S_pre    SDPA(ms)    FA3(ms)   SDPA/FA3
+     128        8.04       7.89      1.02x
+     512        8.01       7.86      1.02x
+    2048        8.03       8.16      0.98x
+    4096        8.06       8.17      0.99x
+
+### GQA n_kv_head=4  (n_head=12, n_kv_head=4, head_dim=128, 1311M params)
+  PREFILL | FP16 | median of 5
+       S    SDPA(ms)    FA3(ms)   SDPA/FA3
+     512        7.08       7.22      0.98x
+    2048       18.07      14.67      1.23x
+    4096       36.65      29.76      1.23x
+    8192       88.65      66.83      1.33x
+  DECODE TPOT | N=50 | median of 5
+   S_pre    SDPA(ms)    FA3(ms)   SDPA/FA3
+     128        8.10       7.93      1.02x
+     512        8.13       7.90      1.03x
+    2048        8.14       8.16      1.00x
+    4096        8.14       8.17      1.00x
+
+### GQA n_kv_head=2  (n_head=12, n_kv_head=2, head_dim=128, 1273M params)
+  PREFILL | FP16 | median of 5
+       S    SDPA(ms)    FA3(ms)   SDPA/FA3
+     512        7.06       7.26      0.97x
+    2048       17.92      14.52      1.23x
+    4096       36.07      29.24      1.23x
+    8192       86.93      66.44      1.31x
+  DECODE TPOT | N=50 | median of 5
+   S_pre    SDPA(ms)    FA3(ms)   SDPA/FA3
+     128        8.12       7.88      1.03x
+     512        8.12       7.90      1.03x
+    2048        8.14       8.18      1.00x
+    4096        8.13       8.17      0.99x
