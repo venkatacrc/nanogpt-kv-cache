@@ -25,6 +25,11 @@ The empirical findings, in one table:
 | 6  | Does FA3 win at Hopper-friendly shapes (head_dim=128)?    | Prefill yes (1.11x at S=2K, **1.37x at S=16K**). Decode no. |
 | 6b | Can a `[B, S, H, D]` cache layout rescue FA3 decode?      | Closes ~9 pp of the gap. Last ~5 pp is intrinsic kernel quality. |
 | 6b | Does batching close the remaining FA3 decode gap?         | **No**: FA3/SDPA ratio is unmoved by B=1, 4, 8.            |
+| 7  | How does cache speedup scale with model size and N?        | Speedup grows with generated length N; model-size trend is flatter than expected. |
+| 8  | Does GQA make FA3 decode win?                              | Decode still near-tied with SDPA; biggest GQA win is KV-memory reduction. |
+| 9  | Is naive FP8 attention a free speedup on H100?             | **No**: slower at tested lengths and numerically unstable without proper scaling. |
+| 10 | Does TP-2 help on a 6B-class model that fits on 1 GPU?     | Prefill improves (up to ~1.47x), decode TPOT regresses (~20%) from NCCL overhead. |
+| 11 | What does throughput vs latency look like at scale?         | TPOT stays ~flat from B=2..256 while total throughput scales near-linearly. |
 
 The big surprises:
 
@@ -76,6 +81,32 @@ step-6b-layout/              Refactor KV cache to FA3-native [B, S, H, D] layout
                              FA3 decode gap closes from 0.87x to 0.96x — most of the penalty
                              was layout, not the kernel. The remaining ~5% is intrinsic.
                              scripts: test_layout.py, bench_layout.py, bench_batch_decode.py
+
+step-7-extras/               Extra sweeps to stress-test the baseline narrative.
+                             (a) model_size.py: cache speedup vs model size
+                             (b) long_generation.py: cache speedup vs generated length N
+                             logs: model_size.log, long_generation.log
+
+step-8-gqa/                  Add grouped-query attention (GQA) support end-to-end.
+                             Compare SDPA vs FA3 for prefill/decode under n_kv_head sweeps.
+                             scripts: test_gqa.py, bench_gqa.py
+                             logs: test_gqa.log, bench_gqa.log
+
+step-9-fp8/                  Experimental FA3 FP8 attention path (E4M3) with naive scaling.
+                             Useful negative result: shows why production FP8 needs proper
+                             calibration / block-wise scaling, not just dtype casts.
+                             script:  bench_fp8.py
+                             log:     bench_fp8.log
+
+step-10-tp/                  Tensor Parallelism (TP) on a Llama-3-like 6B-class model.
+                             Compare 1-GPU vs TP-2 for prefill and decode (SDPA/FA3).
+                             scripts: bench_tp.py, run_tp2.py
+                             logs:    bench_tp.log, run_tp2.log
+
+step-11-pareto/              Throughput-vs-latency sweep over batch size B (FA3 path).
+                             Adds production-facing metrics view: TPOT, total tok/s, and TTFT proxy.
+                             script:  bench_pareto.py
+                             logs:    bench_pareto.log, bench_pareto_extended.log
 ```
 
 ---
@@ -93,7 +124,8 @@ pip install flash-attn-3
 Hardware:
 - All measurements in this repo are from a single **NVIDIA H100 80GB**.
 - Step-0 through step-4 run on any modern NVIDIA GPU. Step-5 SDPA path works
-  on Ampere+ (A100, H100). Step-5/6/6b FA3 path requires Hopper (H100, H200).
+  on Ampere+ (A100, H100). Step-5/6/6b/8/9/11 FA3 paths require Hopper (H100, H200).
+- Step-10 TP experiments require **2 GPUs** for TP-2 runs (`run_tp2.py`).
 
 Software:
 - Python 3.10+
@@ -124,14 +156,14 @@ non-deterministic in SDPA, so don't expect bit-identical numbers.
 
 ## What this repo deliberately leaves out
 
-This is a tutorial, not a production inference framework. If you're building
-something real, you'll need things this repo does **not** address:
+This is a tutorial, not a production inference framework. We now include
+intro-level GQA, FP8 experiments, TP-2, and throughput/latency sweeps, but
+if you're building something real you'll still need:
 
 - **Paged attention** (vLLM-style page tables for the KV cache)
-- **GQA / MQA** (Llama-3 uses grouped-query attention; nanoGPT is full MHA)
 - **Speculative / multi-token decoding** (turns decode into mini-prefill)
-- **Continuous batching** (request-level scheduling)
-- **Quantization beyond FP16** (INT8, FP8, AWQ, GPTQ)
+- **Continuous batching runtime** (request queueing + scheduler; we only benchmark static B)
+- **Production quantization stack** (INT8/AWQ/GPTQ, or production-grade FP8 with calibration)
 - **RoPE positional embeddings** (Llama-style; nanoGPT uses learned WPE)
 
 Each of these is a 10-100x lever in real serving systems, on top of everything
