@@ -1,8 +1,8 @@
 ---
 layout: default
-title: nanoGPT Inference: An Empirical Step-by-Step Tutorial
+title: "nanoGPT Inference: An Empirical Step-by-Step Tutorial"
 
-*KV Cache → FP16 → Rescues → FlashAttention → GQA → FP8 → Tensor Parallelism → Throughput Pareto*  
+description: "KV Cache → FP16 → Rescues → FlashAttention → GQA → FP8 → Tensor Parallelism → Throughput Pareto"
 ---
 *Benchmarked on a single NVIDIA H100; Tensor Parallelism runs on 2×H100.*
 
