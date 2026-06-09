@@ -1,6 +1,6 @@
-title: nanogpt-kv-cache
-description: Adding a KV cache to nanoGPT — a step-by-step empirical tutorial with H100 measurements.
-author: Venkata
+title: nanoGPT Inference: An Empirical Step-by-Step Tutorial
+description: KV Cache → FP16 → Rescues → FlashAttention → GQA → FP8 → Tensor Parallelism → Throughput Pareto
+author: Venkata Chintapalli
 theme: jekyll-theme-cayman
 
 # So syntax highlighting works on GitHub Pages
