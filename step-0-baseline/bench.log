@@ -1,5 +1,3 @@
-Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2644.78it/s]
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
 loaded gpt2 (124.4M params) on cuda
 
 === gpt2 | CUDA | no cache | N=50 ===

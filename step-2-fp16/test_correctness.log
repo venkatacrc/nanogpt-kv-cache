@@ -1,5 +1,3 @@
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 11562.09it/s]
 uncached: [15496, 11, 314, 1101, 7926, 11, 475, 314, 1101, 407, 1654, 611, 345, 821, 3910, 286, 428, 13, 314, 1101, 407]
 cached:   [15496, 11, 314, 1101, 7926, 11, 475, 314, 1101, 407, 1654, 611, 345, 821, 3910, 286, 428, 13, 314, 1101, 407]
 

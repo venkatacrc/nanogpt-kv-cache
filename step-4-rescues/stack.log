@@ -1,4 +1,3 @@
-Loading weights:   0%|          | 0/580 [00:00<?, ?it/s]Loading weights: 100%|██████████| 580/580 [00:00<00:00, 9776.15it/s]
 loaded gpt2-xl (1557.6M, FP16) on cuda
 wrapping model with torch.compile(mode='default') ...
 compiling cached path for B=1 ...

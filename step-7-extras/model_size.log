@@ -1,12 +1,7 @@
 === FP16 | B=1 | P=1 | N=500 | model size sweep | median of 3 ===
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 11002.82it/s]
   loaded gpt2 (124.4M, FP16)
-Loading weights:   0%|          | 0/292 [00:00<?, ?it/s]Loading weights:  97%|█████████▋| 282/292 [00:00<00:00, 2809.88it/s]Loading weights: 100%|██████████| 292/292 [00:00<00:00, 2898.39it/s]
   loaded gpt2-medium (354.8M, FP16)
-Loading weights:   0%|          | 0/436 [00:00<?, ?it/s]Loading weights:  67%|██████▋   | 290/436 [00:00<00:00, 2892.86it/s]Loading weights: 100%|██████████| 436/436 [00:00<00:00, 2925.45it/s]
   loaded gpt2-large (774.0M, FP16)
-Loading weights:   0%|          | 0/580 [00:00<?, ?it/s]Loading weights: 100%|██████████| 580/580 [00:00<00:00, 9691.86it/s]
   loaded gpt2-xl (1557.6M, FP16)
 
           model   params(M)     unc(ms)     cac(ms)   unc TPOT   cac TPOT    speedup
