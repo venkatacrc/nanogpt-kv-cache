@@ -1,139 +1,590 @@
 ---
 layout: default
 title: "nanoGPT Inference: An Empirical Step-by-Step Tutorial"
-
 description: "KV Cache → FP16 → Rescues → FlashAttention → GQA → FP8 → Tensor Parallelism → Throughput Pareto"
 ---
+
+<style>
+.guide-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 2rem; align-items: start; }
+.guide-sidebar { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem; background: #f6f8fa; }
+.guide-sidebar h3 { margin-top: 0; }
+.guide-sidebar ul { margin: 0; padding-left: 1.2rem; }
+.guide-main section { scroll-margin-top: 1rem; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #d8dee4; }
+@media (max-width: 960px) {
+  .guide-layout { grid-template-columns: 1fr; }
+  .guide-sidebar { position: static; max-height: none; }
+}
+</style>
+
 *Benchmarked on a single NVIDIA H100; Tensor Parallelism runs on 2×H100.*
 
-<!--
-  POST OUTLINE for the section-by-section coaching notes
-  (Goal / Show / Claim / Key points for each section).
-  Replace the *[draft]* placeholders with prose.
--->
+<div class="guide-layout">
+<aside class="guide-sidebar">
+<h3>Guide Navigation</h3>
+<ul>
+  <li><a href="#step-0-baseline">Step 0 - Baseline</a></li>
+  <li><a href="#step-1-kv-cache">Step 1 - KV Cache</a></li>
+  <li><a href="#step-2-fp16">Step 2 - FP16</a></li>
+  <li><a href="#step-3-decomposition">Step 3 - Decomposition</a></li>
+  <li><a href="#step-4-rescues">Step 4 - Rescues</a></li>
+  <li><a href="#step-5-backends">Step 5 - Backends</a></li>
+  <li><a href="#step-6-shapes">Step 6 - Shapes</a></li>
+  <li><a href="#step-6b-layout">Step 6b - Layout</a></li>
+  <li><a href="#step-7-extras">Step 7 - Extras</a></li>
+  <li><a href="#step-8-gqa">Step 8 - GQA</a></li>
+  <li><a href="#step-9-fp8">Step 9 - FP8</a></li>
+  <li><a href="#step-10-tp">Step 10 - TP</a></li>
+  <li><a href="#step-11-pareto">Step 11 - Pareto</a></li>
+</ul>
+</aside>
 
-## 1. Why this post
+<main class="guide-main">
 
-*[draft section 1 here §1]*
+<section id="step-0-baseline">
 
-## 2. Background: nanoGPT in 60 seconds
+## Step 0 — Baseline greedy decode
 
-*[draft section 2 here §2]*
+### What we're building
+One sentence: implement full-recompute greedy generation in `step-0-baseline/model.py`.
 
-## 3. Adding the KV cache
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
 
-*[draft section 3 here §3]*
+### The implementation
+Key code change only - not the full file.
 
-![FP32 cache speedup, gpt2-xl](plots/cache_speedup_fp32.png)
+```python
+# TODO: add annotated snippet from step-0-baseline/model.py
+```
 
-## 4. The FP16 surprise
+[Full code: step-0-baseline/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-0-baseline/model.py)
 
-*[draft section 4 here §4]*
+### Running it
 
-![FP32 vs FP16 cache speedup](plots/cache_speedup_fp32_vs_fp16.png)
+```bash
+cd step-0-baseline/
+python bench.py
+```
 
-## 5. Where does the time go?
+### Results
 
-*[draft section 5 here §5]*
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
 
-![Per-step time decomposition](plots/time_decomposition_fp16.png)
+### Baseline decode timing
+![Step 0 plot](plots/cache_speedup_fp32.png)
+*What to look at: establish the no-cache reference before any optimization.*
 
-![Cache speedup is independent of model size](plots/model_size.png)
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
 
-## 6. Three rescues for the FP16 cache
+</section>
 
-### 6.1 Long prompts
+<section id="step-1-kv-cache">
 
-*[draft §6.1]*
+## Step 1 — Add KV cache
 
-![Cache speedup vs prompt length](plots/long_prompt.png)
+### What we're building
+One sentence: add `KVCache` and cache-aware attention in `step-1-kvcache/model.py`.
 
-### 6.2 Batching
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
 
-*[draft §6.2]*
+### The implementation
+Key code change only - not the full file.
 
-![Cache speedup vs batch size](plots/batch.png)
+```python
+# TODO: add annotated KV cache snippet
+```
 
-### 6.3 torch.compile
+[Full code: step-1-kvcache/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-1-kvcache/model.py)
 
-*[draft §6.3]*
+### Running it
 
-![torch.compile attacks the launch floor](plots/compile.png)
+```bash
+cd step-1-kvcache/
+python bench.py
+```
 
-### 6.4 Stacking the rescues
+### Results
 
-*[draft §6.4]*
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
 
-![Stacked rescues, predicted vs measured](plots/stack.png)
+### FP32 cache speedup
+![Step 1 plot](plots/cache_speedup_fp32.png)
+*What to look at: verify cache decode approaches Nx improvement in FP32.*
 
-### 6.5 Long generation
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
 
-*[draft §6.5]*
+</section>
 
-![Cache wins at long N](plots/long_generation.png)
+<section id="step-2-fp16">
 
-## 7. Picking an attention backend
+## Step 2 — Move to FP16
 
-*[draft section 7 here §7]*
+### What we're building
+One sentence: run the same cache path in half precision in `step-2-fp16/model.py`.
 
-![Attention backends, prefill](plots/backends_prefill.png)
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
 
-![Attention backends, decode](plots/backends_decode.png)
+### The implementation
+Key code change only - not the full file.
 
-## 8. When does FlashAttention-3 actually win?
+```python
+# TODO: add annotated FP16 change snippet
+```
 
-### 8.1 Llama-like shapes
+[Full code: step-2-fp16/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-2-fp16/model.py)
 
-*[draft §8.1]*
+### Running it
 
-![FA3 prefill scaling with head_dim=128](plots/fa3_prefill_scaling.png)
+```bash
+cd step-2-fp16/
+python bench.py
+```
 
-### 8.2 The KV cache layout question
+### Results
 
-*[draft §8.2]*
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
 
-![Cache layout closes the FA3 decode gap](plots/layout_decode.png)
+### FP32 vs FP16 cache speedup
+![Step 2 plot](plots/cache_speedup_fp32_vs_fp16.png)
+*What to look at: identify the surprising small-batch FP16 regression.*
 
-![Batching does not close the residual decode gap](plots/batched_decode.png)
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
 
-### 8.3 Does GQA finally make FA3 win decode?
+</section>
 
-*[draft §8.3]*
+<section id="step-3-decomposition">
 
-![GQA decode TPOT and KV cache memory](plots/gqa_decode.png)
+## Step 3 — Time decomposition
 
-![GQA preserves FA3's prefill advantage](plots/gqa_prefill.png)
+### What we're building
+One sentence: isolate per-step latency components in `step-3-decomp/decomp.py`.
 
-### 8.4 What about FP8? (A cautionary tale)
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
 
-*[draft §8.4]*
+### The implementation
+Key code change only - not the full file.
 
-![Naive FP8 attention is slower AND wrong](plots/fp8.png)
+```python
+# TODO: add annotated timing-decomposition snippet
+```
 
-## 9. What we learned
+[Full code: step-3-decomp/decomp.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-3-decomp/decomp.py)
 
-*[draft section 9 here §9]*
+### Running it
 
-### 9.1 TTFT vs batch size
+```bash
+cd step-3-decomp/
+python decomp.py
+```
 
-*TTFT is reported as `prefill + first decode step` (first-step approximated with TPOT from the same run).*
+### Results
 
-![TTFT vs batch size (H100, 1.25B GQA, FA3)](plots/fig_ttft_vs_batch.png)
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
 
-### 9.2 Throughput vs per-user latency (Pareto)
+### Per-step time decomposition
+![Step 3 plot](plots/time_decomposition_fp16.png)
+*What to look at: separate launch overhead from true math work.*
 
-![Pareto: throughput vs per-user latency](plots/fig_pareto.png)
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
 
-## 10. References
+</section>
 
-- **Andrej Karpathy** — [nanoGPT](https://github.com/karpathy/nanoGPT). The
-  architecture, the weight-loading-from-HF pattern, and the tasteful 200-line
-  forward pass are all his.
-- **Tri Dao et al.** — [FlashAttention](https://github.com/Dao-AILab/flash-attention)
-  papers and the prebuilt FA3 wheel on H100 used in step-5/6.
-- **PyTorch SDPA team** — the dispatcher that "just works" and picks Flash /
-  cuDNN / memory-efficient under the hood without us asking.
+<section id="step-4-rescues">
 
----
+## Step 4 — Rescue strategies
 
-*Code, logs, and plot-generation scripts are at [github.com/venkatacrc/nanogpt-kv-cache](https://github.com/venkatacrc/nanogpt-kv-cache).*
+### What we're building
+One sentence: test long prompts, batching, and compile rescues in `step-4-rescues/`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add one representative rescue snippet
+```
+
+[Full code: step-4-rescues/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-4-rescues/model.py)
+
+### Running it
+
+```bash
+cd step-4-rescues/
+python compile.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### Stacked rescues
+![Step 4 plot](plots/stack.png)
+*What to look at: compare measured stacked gains vs naive multiplied expectations.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-5-backends">
+
+## Step 5 — Attention backend choices
+
+### What we're building
+One sentence: add backend selection (manual/SDPA/FA3) in `step-5-backends/model.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated backend-dispatch snippet
+```
+
+[Full code: step-5-backends/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-5-backends/model.py)
+
+### Running it
+
+```bash
+cd step-5-backends/
+python bench_backends.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### Attention backends (decode)
+![Step 5 plot](plots/backends_decode.png)
+*What to look at: contrast prefill winners with decode behavior.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-6-shapes">
+
+## Step 6 — Llama-like shapes
+
+### What we're building
+One sentence: test Hopper-friendly dimensions in `step-6-shapes/model.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated shape/config snippet
+```
+
+[Full code: step-6-shapes/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-6-shapes/model.py)
+
+### Running it
+
+```bash
+cd step-6-shapes/
+python bench_shapes.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### FA3 prefill scaling
+![Step 6 plot](plots/fa3_prefill_scaling.png)
+*What to look at: find the context length where FA3 overtakes SDPA for prefill.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-6b-layout">
+
+## Step 6b — KV layout refactor
+
+### What we're building
+One sentence: align cache memory layout with FA3 expectations in `step-6b-layout/model.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated layout-change snippet
+```
+
+[Full code: step-6b-layout/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-6b-layout/model.py)
+
+### Running it
+
+```bash
+cd step-6b-layout/
+python bench_layout.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### Layout impact on decode
+![Step 6b plot](plots/layout_decode.png)
+*What to look at: estimate how much of the FA3 decode gap came from layout alone.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-7-extras">
+
+## Step 7 — Extra stress tests
+
+### What we're building
+One sentence: add model-size and long-generation sweeps in `step-7-extras/`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated sweep-loop snippet
+```
+
+[Full code: step-7-extras/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-7-extras/model.py)
+
+### Running it
+
+```bash
+cd step-7-extras/
+python long_generation.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### Cache speedup vs generation length
+![Step 7 plot](plots/long_generation.png)
+*What to look at: verify cache benefits grow as generated sequence length increases.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-8-gqa">
+
+## Step 8 — Grouped Query Attention (GQA)
+
+### What we're building
+One sentence: add GQA-capable attention path in `step-8-gqa/model.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated GQA head-group snippet
+```
+
+[Full code: step-8-gqa/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-8-gqa/model.py)
+
+### Running it
+
+```bash
+cd step-8-gqa/
+python bench_gqa.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### GQA decode and KV memory
+![Step 8 plot](plots/gqa_decode.png)
+*What to look at: compare latency shifts against KV-memory savings as `n_kv_head` changes.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-9-fp8">
+
+## Step 9 — FP8 experiment
+
+### What we're building
+One sentence: test a naive FP8 attention path in `step-9-fp8/model.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated FP8 cast/scaling snippet
+```
+
+[Full code: step-9-fp8/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-9-fp8/model.py)
+
+### Running it
+
+```bash
+cd step-9-fp8/
+python bench_fp8.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### Naive FP8 cautionary result
+![Step 9 plot](plots/fp8.png)
+*What to look at: separate theoretical FP8 promise from practical implementation pitfalls.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-10-tp">
+
+## Step 10 — Tensor Parallelism (TP-2)
+
+### What we're building
+One sentence: add tensor-parallel inference path in `step-10-tp/model.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated TP partition/collective snippet
+```
+
+[Full code: step-10-tp/model.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-10-tp/model.py)
+
+### Running it
+
+```bash
+cd step-10-tp/
+python bench_tp.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### TP scaling tradeoff
+![Step 10 plot](plots/fig_tp.png)
+*What to look at: compare prefill gains against decode communication overhead.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+<section id="step-11-pareto">
+
+## Step 11 — Throughput/latency Pareto
+
+### What we're building
+One sentence: measure batch-size tradeoffs in `step-11-pareto/bench_pareto.py`.
+
+### The idea
+Concept explanation in plain English. No code yet.  
+What problem does this solve? What does it change?
+
+### The implementation
+Key code change only - not the full file.
+
+```python
+# TODO: add annotated throughput-sweep snippet
+```
+
+[Full code: step-11-pareto/bench_pareto.py](https://github.com/venkatacrc/nanogpt-kv-cache/blob/main/step-11-pareto/bench_pareto.py)
+
+### Running it
+
+```bash
+cd step-11-pareto/
+python bench_pareto.py
+```
+
+### Results
+
+### What the numbers mean
+Walk through the output line by line.  
+Be explicit about what was expected vs. what happened.
+
+### Throughput vs per-user latency
+![Step 11 plot](plots/fig_pareto.png)
+*What to look at: locate operating points where throughput rises with acceptable per-user latency.*
+
+### What we learned
+One or two sentences. What does this step add to the overall picture? What question does it open for the next step?
+
+</section>
+
+</main>
+</div>
