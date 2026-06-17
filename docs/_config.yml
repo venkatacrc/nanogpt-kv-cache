@@ -1,7 +1,7 @@
 title: "nanoGPT Inference: An Empirical Step-by-Step Tutorial"
 description: "KV Cache → FP16 → Rescues → FlashAttention → GQA → FP8 → Tensor Parallelism → Throughput Pareto"
 author: Venkata Chintapalli
-theme: jekyll-theme-cayman
+# theme: none — using custom _layouts/default.html (Karpathy-style)
 
 # So syntax highlighting works on GitHub Pages
 markdown: kramdown

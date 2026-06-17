@@ -4,20 +4,6 @@ title: "nanoGPT Inference: A Step-by-Step Tutorial"
 description: "A first-principles walkthrough of transformer inference: KV cache, mixed precision, attention backends, GQA, tensor parallelism, and the throughput-latency tradeoff."
 ---
 
-<style>
-.guide-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 2rem; align-items: start; }
-.guide-sidebar { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem; background: #f6f8fa; }
-.guide-sidebar h3 { margin-top: 0; }
-.guide-sidebar ul { margin: 0 0 0.75rem 0; padding-left: 1.2rem; }
-.guide-sidebar .nav-section { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #57606a; margin-top: 0.5rem; }
-.guide-main section { scroll-margin-top: 1rem; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #d8dee4; }
-.guide-main blockquote { color: #57606a; border-left: 3px solid #d0d7de; background: #f6f8fa; padding: 0.5rem 0.9rem; margin: 0.5rem 0 1rem 0; font-style: italic; }
-@media (max-width: 960px) {
-  .guide-layout { grid-template-columns: 1fr; }
-  .guide-sidebar { position: static; max-height: none; }
-}
-</style>
-
 *Benchmarks throughout this guide were collected on a single NVIDIA H100. Step 8 (Tensor Parallelism) requires 2 GPUs.*
 
 ## Overview
@@ -26,8 +12,8 @@ description: "A first-principles walkthrough of transformer inference: KV cache,
 Engineers and students who know basic Python and have seen a transformer once, and want to understand model inference deeply enough to reason about its performance — not just call an inference framework.
 
 ### What you will learn
-- How autoregressive decoding works at the loop level, and why a naïve implementation is \(O(N^2)\) per step.
-- How a KV cache reduces per-step work to \(O(N)\), and why that does not always translate to a speedup in practice.
+- How autoregressive decoding works at the loop level, and why a naïve implementation is \\(O(N^2)\\) per step.
+- How a KV cache reduces per-step work to \\(O(N)\\), and why that does not always translate to a speedup in practice.
 - How to decompose end-to-end latency into prefill, decode, kernel-launch, and memory-bandwidth components.
 - How attention backends (manual, SDPA, FlashAttention-3) differ, and when each one wins.
 - How architectural choices — head dimensions, KV layout, grouped-query attention — interact with kernel implementations.
@@ -69,44 +55,6 @@ This is a learning artifact, not a benchmark report or a production engine. Fram
 
 ---
 
-<div class="guide-layout">
-<aside class="guide-sidebar">
-<h3>Guide Navigation</h3>
-
-<div class="nav-section">Foundations</div>
-<ul>
-  <li><a href="#step-0-baseline">Step 0 - Baseline</a></li>
-  <li><a href="#step-1-kv-cache">Step 1 - KV Cache</a></li>
-  <li><a href="#step-2-fp16">Step 2 - FP16</a></li>
-  <li><a href="#step-3-decomposition">Step 3 - Decomposition</a></li>
-  <li><a href="#step-4-rescues">Step 4 - Rescues</a></li>
-</ul>
-
-<div class="nav-section">Modern Inference</div>
-<ul>
-  <li><a href="#step-5-backends">Step 5 - Attention Backends</a></li>
-  <li><a href="#step-6-fa3">Step 6 - Making FA3 Win</a></li>
-  <li><a href="#step-7-gqa">Step 7 - GQA</a></li>
-</ul>
-
-<div class="nav-section">Scaling</div>
-<ul>
-  <li><a href="#step-8-tp">Step 8 - Tensor Parallelism</a></li>
-  <li><a href="#step-9-pareto">Step 9 - Throughput-Latency Pareto</a></li>
-</ul>
-
-<div class="nav-section">Appendix</div>
-<ul>
-  <li><a href="#appendix-sweeps">A1 - Sweeps</a></li>
-  <li><a href="#appendix-fp8">A2 - FP8 Cautionary Tale</a></li>
-  <li><a href="#references">References</a></li>
-</ul>
-</aside>
-
-<main class="guide-main">
-
-<section id="step-0-baseline">
-
 ## Step 0 — Baseline
 
 ### What we're building
@@ -115,7 +63,7 @@ This is a learning artifact, not a benchmark report or a production engine. Fram
 ### The idea
 > Two short paragraphs, no code:
 > 1) What does autoregressive generation actually do per step in the original nanoGPT loop?
-> 2) Why is the per-step cost \(O(N^2)\) instead of \(O(N)\), and what is being recomputed?
+> 2) Why is the per-step cost \\(O(N^2)\\) instead of \\(O(N)\\), and what is being recomputed?
 
 ### The implementation
 > Show the smallest snippet (5–15 lines) from `step-0-baseline/model.py` that defines the decode loop. Annotate why each line exists; do not paste the entire file.
@@ -144,9 +92,7 @@ python bench.py
 ### What we learned
 > One or two sentences. End with the question this step opens for Step 1.
 
-</section>
-
-<section id="step-1-kv-cache">
+---
 
 ## Step 1 — KV Cache
 
@@ -179,20 +125,18 @@ python bench.py              # speed comparison
 > Paste a short table from `bench_gpt2xl.log` showing uncached vs cached TPOT.
 
 ### What the numbers mean
-> What speedup did you observe? How does it scale with the number of generated tokens \(N\)? Was the cached path bit-exact in FP32? Why does this work?
+> What speedup did you observe? How does it scale with the number of generated tokens \\(N\\)? Was the cached path bit-exact in FP32? Why does this work?
 
 ### Plot — FP32 cache speedup on gpt2-xl
 
 ![FP32 cache speedup](plots/cache_speedup_fp32.png)
 
-*What to look at: the cached curve flattens while the uncached curve grows with \(N\).*
+*What to look at: the cached curve flattens while the uncached curve grows with \\(N\\).*
 
 ### What we learned
 > One or two sentences. What question does this open for Step 2?
 
-</section>
-
-<section id="step-2-fp16">
+---
 
 ## Step 2 — FP16
 
@@ -236,9 +180,7 @@ python bench.py
 ### What we learned
 > One or two sentences. End with the precise question Step 3 will answer.
 
-</section>
-
-<section id="step-3-decomposition">
+---
 
 ## Step 3 — Decomposition
 
@@ -281,9 +223,7 @@ python decomp.py
 ### What we learned
 > One or two sentences. State the cause of the Step 2 anomaly in your own words.
 
-</section>
-
-<section id="step-4-rescues">
+---
 
 ## Step 4 — Rescues
 
@@ -332,9 +272,7 @@ python stack.py         # combined: predicted vs measured
 ### What we learned
 > Two sentences. End with what changes once we leave gpt2 shapes behind in Step 5.
 
-</section>
-
-<section id="step-5-backends">
+---
 
 ## Step 5 — Attention Backends
 
@@ -379,9 +317,7 @@ python bench_backends.py       # prefill + decode benchmarks
 ### What we learned
 > Two sentences. What architectural change might let FA3 finally win?
 
-</section>
-
-<section id="step-6-fa3">
+---
 
 ## Step 6 — Making FA3 Win
 
@@ -431,9 +367,7 @@ python bench_batch_decode.py      # does batching close the residual gap?
 ### What we learned
 > Two sentences. End with the architectural decision Step 7 will make.
 
-</section>
-
-<section id="step-7-gqa">
+---
 
 ## Step 7 — Grouped-Query Attention
 
@@ -478,9 +412,7 @@ python bench_gqa.py       # SDPA vs FA3 prefill + decode
 ### What we learned
 > Two sentences. End with the question Step 8 (or Step 9, if you skip TP) will answer.
 
-</section>
-
-<section id="step-8-tp">
+---
 
 ## Step 8 — Tensor Parallelism *(optional, requires 2 GPUs)*
 
@@ -524,9 +456,7 @@ torchrun --nproc_per_node=2 run_tp2.py
 ### What we learned
 > Two sentences. End with: when is TP a good idea on a model that fits on one GPU?
 
-</section>
-
-<section id="step-9-pareto">
+---
 
 ## Step 9 — Throughput-Latency Pareto
 
@@ -570,9 +500,7 @@ python bench_pareto.py
 ### What we learned
 > Two or three sentences — this is the closing step. Tie it back to the original question: why does inference performance depend on every choice we made in Steps 0–8?
 
-</section>
-
-<section id="appendix-sweeps">
+---
 
 ## Appendix A1 — Sweeps over model size and generation length
 
@@ -597,11 +525,9 @@ python long_generation.py   # cache speedup vs generated length N
 ![Cache speedup vs model size](plots/model_size.png)
 ![Cache speedup vs N](plots/long_generation.png)
 
-> What stays constant across sizes? What grows with \(N\)? Does anything surprise you?
+> What stays constant across sizes? What grows with \\(N\\)? Does anything surprise you?
 
-</section>
-
-<section id="appendix-fp8">
+---
 
 ## Appendix A2 — FP8: A Cautionary Tale
 
@@ -626,9 +552,7 @@ python bench_fp8.py
 
 > Why is the naive path slower at the tested lengths? Why is it numerically unstable? What would a production FP8 stack add that this script does not?
 
-</section>
-
-<section id="references">
+---
 
 ## References
 
@@ -639,8 +563,3 @@ python bench_fp8.py
 ---
 
 *Code, logs, and plot scripts: [github.com/venkatacrc/nanogpt-kv-cache](https://github.com/venkatacrc/nanogpt-kv-cache).*
-
-</section>
-
-</main>
-</div>
